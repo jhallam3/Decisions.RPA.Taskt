@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="DecisionsFramework">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files\Decisions\Decisions Server\bin\DecisionsFramework.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
