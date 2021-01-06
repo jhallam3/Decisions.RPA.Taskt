@@ -6,6 +6,7 @@ namespace RPAScript
 {
     [ORMEntity]
     [DataContract]
+    
     public class RpaScriptEntity : BaseORMEntity
     {
         [ORMPrimaryKeyField]
@@ -21,8 +22,7 @@ namespace RPAScript
         [ORMField]
         private string commaSeparatedVariables;
 
-        [ORMField]
-        private string commaSeparatedVersions;
+        
 
         [DataMember]
         public string Name
@@ -45,11 +45,6 @@ namespace RPAScript
             set => commaSeparatedVariables = value;
         }
 
-        [DataMember]
-        public string CommaSeparatedVersions
-        {
-            get => commaSeparatedVersions;
-            set => commaSeparatedVersions = value;
-        }
+       
     }
 }

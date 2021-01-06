@@ -10,4 +10,8 @@
     </Reference>
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;C:\Users\vagrant\source\repos\jhallam3\Decisions.RPA.Taskt\Decisions.RPA.Taskt\RPAScript\bin\Debug\netcoreapp3.1\RPAScript.dll&quot; &quot;C:\Program Files\Decisions\Decisions Server\modules\Decisions.Local\CoreServicesDlls&quot; /Y&#xD;&#xA;powershell -Command &quot;&amp; {Restart-Service DecisionsServer;}&quot;" />
+  </Target>
+
 </Project>
