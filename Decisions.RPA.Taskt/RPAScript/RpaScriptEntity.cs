@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.Serialization;
+using DecisionsFramework.Data.DataTypes;
 using DecisionsFramework.Data.ORMapper;
 
 namespace RPAScript
@@ -22,7 +23,10 @@ namespace RPAScript
         [ORMField]
         private string commaSeparatedVariables;
 
+        [ORMField]
         
+        private byte[] rpafile;
+       
 
         [DataMember]
         public string Name
@@ -45,6 +49,12 @@ namespace RPAScript
             set => commaSeparatedVariables = value;
         }
 
-       
+        [DataMember]
+        public byte[] Rpafile
+        {
+            get => rpafile;
+            set => rpafile = value;
+        }
+
     }
 }

@@ -10,6 +10,10 @@ using DecisionsFramework.Design.Flow;
 using DecisionsFramework.Design.Flow.Mapping;
 using DecisionsFramework.Design.Properties;
 using DecisionsFramework.ServiceLayer.Services.ContextData;
+using RPAScript.Datatypes;
+using System.Xml.Serialization;
+using System.IO;
+using System.Xml.XPath;
 
 namespace RPAScript
 {
@@ -59,6 +63,7 @@ namespace RPAScript
                 script = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(InputData));
+                OnPropertyChanged(nameof(Version));
             }
         }
 
@@ -98,6 +103,7 @@ namespace RPAScript
                 version = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(InputData));
+
             }
         }
 
@@ -148,8 +154,9 @@ namespace RPAScript
                 }
                 else
                 {
-                    return rpaScripts[0].CommaSeparatedVariables.Split(',');
-
+                    if(rpaScripts.Length >=1)
+                        return rpaScripts[0].CommaSeparatedVariables.Split(',');
+                    return new string[] { "" };
                 }
             }
         }
@@ -164,11 +171,64 @@ namespace RPAScript
             SimpleKeyValuePair[] scriptVariables = data[INPUT] as SimpleKeyValuePair[];
             List<SimpleKeyValuePair> LSVP = new List<SimpleKeyValuePair>();
 
+            ORM<RpaScriptEntity> orm = new ORM<RpaScriptEntity>();
+            RpaScriptEntity[] rpaScripts = orm.Fetch();
+
+
+
             for (var i = 0; i < data.Keys.Count; i++)
             {
                 var _simplekeyvaluepair = new SimpleKeyValuePair() { Key = data.Keys.ElementAt(i), Value = data.Values.ElementAt(i).ToString() };
                 LSVP.Add(_simplekeyvaluepair);
             }
+            scriptVariables = LSVP.ToArray();
+
+            var item = rpaScripts.Where(x => x.Name == script && x.Version == version).FirstOrDefault();
+            var rpaFileContents = System.Text.Encoding.Default.GetString(item.Rpafile);
+
+            var variables = new Variables();
+            List<ScriptVariable> LScriptVariable = new List<ScriptVariable>();
+
+            foreach (var s in scriptVariables)
+            {
+                
+
+                
+                
+                var vv = new VariableValue() { Text = "value", Type = "xsd:string" };
+                LScriptVariable.Add(new ScriptVariable() { VariableName = s.Key, VariableValue = new VariableValue() { Text = s.Value, Type = "xsd:string" } });
+            }
+
+
+            ////// get file variables secion 
+            ///
+
+            var startofvariables = rpaFileContents.IndexOf("<Variables>");
+            var endofvariables = rpaFileContents.IndexOf("</Variables>");
+
+            var partoffile = rpaFileContents.Substring(startofvariables, (endofvariables-startofvariables)+12);
+
+
+            var reader = new StreamReader(new MemoryStream(item.Rpafile), true);
+
+
+            
+
+
+            variables.ScriptVariable = LScriptVariable;
+
+            var ns = new XmlSerializerNamespaces();
+            ns.Add("", "");
+            var stringwriter = new System.IO.StringWriter();
+            var serializer = new XmlSerializer(typeof(Variables));
+            serializer.Serialize(stringwriter, variables);
+            var xmlasString =  stringwriter.ToString();
+            xmlasString = xmlasString.Replace(" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"", string.Empty);
+            xmlasString = xmlasString.Replace("<?xml version=\"1.0\" encoding=\"utf-16\"?>", string.Empty);
+
+            var fileforreturn = rpaFileContents.Replace(partoffile, xmlasString);
+
+            LSVP.Add(new SimpleKeyValuePair() { Key = "script", Value = fileforreturn });
             scriptVariables = LSVP.ToArray();
 
             return new ResultData(PATH_DONE, new[] { new DataPair(RESULT_DATA, scriptVariables) });
@@ -181,5 +241,7 @@ namespace RPAScript
             PropertyChangedEventHandler handler = PropertyChanged;
             handler?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        
     }
 }
