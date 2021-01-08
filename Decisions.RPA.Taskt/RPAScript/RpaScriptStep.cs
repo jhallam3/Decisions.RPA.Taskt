@@ -14,6 +14,11 @@ using RPAScript.Datatypes;
 using System.Xml.Serialization;
 using System.IO;
 using System.Xml.XPath;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
+using System.Net;
+using System.Text;
 
 namespace RPAScript
 {
@@ -61,6 +66,28 @@ namespace RPAScript
             set
             {
                 script = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(InputData));
+                OnPropertyChanged(nameof(Version));
+            }
+        }
+
+        
+
+        [WritableValue]
+        private string awaitResult;
+
+        [SelectStringEditor("ScriptNames")]
+        public string AwaitResult
+        {
+            get
+            {
+
+                return awaitResult;
+            }
+            set
+            {
+                awaitResult = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(InputData));
                 OnPropertyChanged(nameof(Version));
@@ -230,6 +257,10 @@ namespace RPAScript
 
             LSVP.Add(new SimpleKeyValuePair() { Key = "script", Value = fileforreturn });
             scriptVariables = LSVP.ToArray();
+            String bom = new String("\u00EF\u00BB\u00BF");
+            byte[] toEncodeAsBytes = Encoding.UTF8.GetBytes(bom+fileforreturn);
+            
+            var getTaskt = TasktRestRequester<string>("192.168.2.10", "19312", "AwaitScript", "1459ed78-3f8e-416c-94d4-2efefbf289f2", toEncodeAsBytes);
 
             return new ResultData(PATH_DONE, new[] { new DataPair(RESULT_DATA, scriptVariables) });
         }
@@ -242,6 +273,67 @@ namespace RPAScript
             handler?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
+        public string TasktRestRequester<T>([NotNull] string TasktClientIP, string port, string Method, [NotNull] string AuthKey, byte[] ScriptData)
+        {
+            try
+            {
+                var reader = new StreamReader(new MemoryStream(ScriptData), true);
+
+                var file = Guid.NewGuid().ToString() + ".xml";
+
+                
+                using (var w = new StreamWriter(file, false, encoding: Encoding.UTF8))
+                {
+                    w.Write(reader.ReadToEnd());
+                    
+                }
+                var enc = new UTF8Encoding(true);
+                WriteToFile(file, enc, ScriptData);
+
+                var filebytes = System.IO.File.ReadAllBytes(file);
+                
+                
+                
+                //var base64file = Convert.ToBase64String(readfile, Base64FormattingOptions.None);
+                var client = new HttpClient();
+                var url = "http://" + TasktClientIP + ":" + port + "/" + Method;
+                
+                var message = new HttpRequestMessage
+                {
+                    Method = HttpMethod.Post,
+                    RequestUri = new Uri(url)
+                };
+                message.Headers.Add(HttpRequestHeader.ContentType.ToString(), "text/plain");
+                message.Headers.Add("AuthKey", AuthKey);
+                if(ScriptData != null)
+                {
+                    
+                    message.Headers.Add("ScriptData", Convert.ToBase64String(System.IO.File.ReadAllBytes(file)));
+                }
+               
+
+                var response = client.SendAsync(message).Result;
+                var contents = response.Content.ReadAsStringAsync().Result;
+                return contents;
+            }
+            catch (Exception ex2)
+            {
+                throw;
+            }
+        }
+        private static void WriteToFile(String fn, Encoding enc, Byte[] bytes)
+        {
+            var fs = new FileStream(fn, FileMode.Create);
+            Byte[] preamble = enc.GetPreamble();
+            fs.Write(preamble, 0, preamble.Length);
+            Console.WriteLine("Preamble has {0} bytes", preamble.Length);
+            fs.Write(bytes, 0, bytes.Length);
+            Console.WriteLine("Wrote {0} bytes to {1}.", fs.Length, fn);
+            fs.Close();
+            Console.WriteLine();
+        }
+
         
+
     }
 }
