@@ -14,12 +14,7 @@ using RPAScript.Datatypes;
 using System.Xml.Serialization;
 using System.IO;
 using System.Xml.XPath;
-using System.Net.Http;
-using System.Threading.Tasks;
-using System.Diagnostics.CodeAnalysis;
-using System.Net;
-using System.Text;
-
+using DecisionsFramework.Design.Flow.Service.Execution;
 namespace RPAScript
 {
     [Writable]
@@ -28,7 +23,7 @@ namespace RPAScript
     {
         private const string INPUT = "Script Variables";
         private const string PATH_DONE = "Done";
-        private const string RESULT_DATA = "Script Variables";
+        private const string RESULT_DATA = "Taskt Response";
 
 
         [PropertyHidden]
@@ -40,7 +35,7 @@ namespace RPAScript
                 RpaScriptEntity[] rpaScripts = orm.Fetch();
                 List<string> scriptNames = new List<string>();
 
-                foreach (var item in rpaScripts)
+                foreach (RpaScriptEntity item in rpaScripts)
                 {
                     if (!scriptNames.Contains(item.Name))
                     {
@@ -72,27 +67,68 @@ namespace RPAScript
             }
         }
 
-        
-
         [WritableValue]
-        private string awaitResult;
+        private string decisionsServer;
 
-        [SelectStringEditor("ScriptNames")]
-        public string AwaitResult
+        [StringEditor]
+        public string DecisionsServer
         {
             get
             {
 
-                return awaitResult;
+                return decisionsServer;
             }
             set
             {
-                awaitResult = value;
+                decisionsServer = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(InputData));
                 OnPropertyChanged(nameof(Version));
             }
         }
+
+        [WritableValue]
+        private string tasktServer;
+
+        [StringEditor]
+        public string TasktServer
+        {
+            get
+            {
+
+                return tasktServer;
+            }
+            set
+            {
+                tasktServer = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(InputData));
+                OnPropertyChanged(nameof(Version));
+            }
+        }
+
+        [WritableValue]
+        private bool awaitResponse;
+
+        [BooleanEditor]
+        public bool AwaitResponse
+        {
+            get
+            {
+
+                return awaitResponse;
+            }
+            set
+            {
+                awaitResponse = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(InputData));
+                OnPropertyChanged(nameof(Version));
+            }
+        }
+
+
+
 
 
         [PropertyHidden]
@@ -103,7 +139,7 @@ namespace RPAScript
                 ORM<RpaScriptEntity> orm = new ORM<RpaScriptEntity>();
                 RpaScriptEntity[] rpaScripts = orm.Fetch();
                 List<string> scriptNames = new List<string>();
-                foreach (var item in rpaScripts.Where(x => x.Name == this.script).ToArray())
+                foreach (RpaScriptEntity item in rpaScripts.Where(x => x.Name == this.script).ToArray())
                 {
                     if (!string.IsNullOrEmpty(item.Version))
                     {
@@ -181,7 +217,7 @@ namespace RPAScript
                 }
                 else
                 {
-                    if(rpaScripts.Length >=1)
+                    if (rpaScripts.Length >= 1)
                         return rpaScripts[0].CommaSeparatedVariables.Split(',');
                     return new string[] { "" };
                 }
@@ -190,7 +226,7 @@ namespace RPAScript
 
         public OutcomeScenarioData[] OutcomeScenarios => new[]
         {
-            new OutcomeScenarioData(PATH_DONE, new DataDescription(typeof(SimpleKeyValuePair[]), RESULT_DATA))
+            new OutcomeScenarioData(PATH_DONE, new DataDescription(typeof(String), RESULT_DATA))
         };
 
         public ResultData Run(StepStartData data)
@@ -203,66 +239,73 @@ namespace RPAScript
 
 
 
-            for (var i = 0; i < data.Keys.Count; i++)
+            for (int i = 0; i < data.Keys.Count; i++)
             {
-                var _simplekeyvaluepair = new SimpleKeyValuePair() { Key = data.Keys.ElementAt(i), Value = data.Values.ElementAt(i).ToString() };
+                SimpleKeyValuePair _simplekeyvaluepair = new SimpleKeyValuePair() { Key = data.Keys.ElementAt(i), Value = data.Values.ElementAt(i).ToString() };
                 LSVP.Add(_simplekeyvaluepair);
             }
             scriptVariables = LSVP.ToArray();
 
-            var item = rpaScripts.Where(x => x.Name == script && x.Version == version).FirstOrDefault();
-            var rpaFileContents = System.Text.Encoding.Default.GetString(item.Rpafile);
+            RpaScriptEntity item = rpaScripts.Where(x => x.Name == script && x.Version == version).FirstOrDefault();
+            string rpaFileContents = System.Text.Encoding.Default.GetString(item.Rpafile);
 
-            var variables = new Variables();
+            Variables variables = new Variables();
             List<ScriptVariable> LScriptVariable = new List<ScriptVariable>();
 
-            foreach (var s in scriptVariables)
+            foreach (SimpleKeyValuePair s in scriptVariables)
             {
-                
 
-                
-                
-                var vv = new VariableValue() { Text = "value", Type = "xsd:string" };
+
+
+
+                VariableValue vv = new VariableValue() { Text = "value", Type = "xsd:string" };
                 LScriptVariable.Add(new ScriptVariable() { VariableName = s.Key, VariableValue = new VariableValue() { Text = s.Value, Type = "xsd:string" } });
             }
 
 
-            ////// get file variables secion 
-            ///
-
-            var startofvariables = rpaFileContents.IndexOf("<Variables>");
-            var endofvariables = rpaFileContents.IndexOf("</Variables>");
-
-            var partoffile = rpaFileContents.Substring(startofvariables, (endofvariables-startofvariables)+12);
-
-
-            var reader = new StreamReader(new MemoryStream(item.Rpafile), true);
-
-
             
+            //replace variables section of the document
+            int startofvariables = rpaFileContents.IndexOf("<Variables>");
+            int endofvariables = rpaFileContents.IndexOf("</Variables>");
+
+            string partoffile = rpaFileContents.Substring(startofvariables, (endofvariables - startofvariables) + 12);
+
+    
 
 
             variables.ScriptVariable = LScriptVariable;
 
-            var ns = new XmlSerializerNamespaces();
+            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
             ns.Add("", "");
-            var stringwriter = new System.IO.StringWriter();
-            var serializer = new XmlSerializer(typeof(Variables));
+            StringWriter stringwriter = new System.IO.StringWriter();
+            XmlSerializer serializer = new XmlSerializer(typeof(Variables));
             serializer.Serialize(stringwriter, variables);
-            var xmlasString =  stringwriter.ToString();
+            string xmlasString = stringwriter.ToString();
             xmlasString = xmlasString.Replace(" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"", string.Empty);
             xmlasString = xmlasString.Replace("<?xml version=\"1.0\" encoding=\"utf-16\"?>", string.Empty);
 
-            var fileforreturn = rpaFileContents.Replace(partoffile, xmlasString);
+           
+            string TasktFileToRun = rpaFileContents.Replace(partoffile, xmlasString);
 
-            LSVP.Add(new SimpleKeyValuePair() { Key = "script", Value = fileforreturn });
-            scriptVariables = LSVP.ToArray();
-            String bom = new String("\u00EF\u00BB\u00BF");
-            byte[] toEncodeAsBytes = Encoding.UTF8.GetBytes(bom+fileforreturn);
+           
             
-            var getTaskt = TasktRestRequester<string>("192.168.2.10", "19312", "AwaitScript", "1459ed78-3f8e-416c-94d4-2efefbf289f2", toEncodeAsBytes);
+            // Run flow
+            List<DataPair> LDP = new List<DataPair>();
+            LDP.Add(new DataPair() { Name = "AwaitResult", OutputValue = awaitResponse });
+            LDP.Add(new DataPair() { Name = "FileContentsWithChangedParameters", OutputValue = TasktFileToRun.ToString() });
+            LDP.Add(new DataPair() { Name = "TasktServerIP", OutputValue = tasktServer });
+            LDP.Add(new DataPair() { Name = "DecisionsServerIP", OutputValue = decisionsServer });
 
-            return new ResultData(PATH_DONE, new[] { new DataPair(RESULT_DATA, scriptVariables) });
+            //var Flow_LoadFileContents = FlowEngine.Start("513cc4fb-49e2-11eb-a335-0800277026be", LDP.ToArray());
+            FlowCompletedInstruction flowCompletedInstruction = FlowEngine.StartSyncFlow("513cc4fb-49e2-11eb-a335-0800277026be", LDP.ToArray());
+
+            List<SimpleKeyValuePair> ReturnArray = new List<SimpleKeyValuePair>();
+           
+            ReturnArray.Add(new SimpleKeyValuePair() { Key = "Result", Value = flowCompletedInstruction.ResultData.ElementAt(0).ToString()});
+
+            Dictionary<string, object> resultData = new Dictionary<string, object>();
+            resultData.Add("Taskt Response", flowCompletedInstruction.ResultData.ElementAt(0).OutputValue.ToString());
+            return new ResultData(PATH_DONE, resultData);
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -273,67 +316,6 @@ namespace RPAScript
             handler?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        public string TasktRestRequester<T>([NotNull] string TasktClientIP, string port, string Method, [NotNull] string AuthKey, byte[] ScriptData)
-        {
-            try
-            {
-                var reader = new StreamReader(new MemoryStream(ScriptData), true);
-
-                var file = Guid.NewGuid().ToString() + ".xml";
-
-                
-                using (var w = new StreamWriter(file, false, encoding: Encoding.UTF8))
-                {
-                    w.Write(reader.ReadToEnd());
-                    
-                }
-                var enc = new UTF8Encoding(true);
-                WriteToFile(file, enc, ScriptData);
-
-                var filebytes = System.IO.File.ReadAllBytes(file);
-                
-                
-                
-                //var base64file = Convert.ToBase64String(readfile, Base64FormattingOptions.None);
-                var client = new HttpClient();
-                var url = "http://" + TasktClientIP + ":" + port + "/" + Method;
-                
-                var message = new HttpRequestMessage
-                {
-                    Method = HttpMethod.Post,
-                    RequestUri = new Uri(url)
-                };
-                message.Headers.Add(HttpRequestHeader.ContentType.ToString(), "text/plain");
-                message.Headers.Add("AuthKey", AuthKey);
-                if(ScriptData != null)
-                {
-                    
-                    message.Headers.Add("ScriptData", Convert.ToBase64String(System.IO.File.ReadAllBytes(file)));
-                }
-               
-
-                var response = client.SendAsync(message).Result;
-                var contents = response.Content.ReadAsStringAsync().Result;
-                return contents;
-            }
-            catch (Exception ex2)
-            {
-                throw;
-            }
-        }
-        private static void WriteToFile(String fn, Encoding enc, Byte[] bytes)
-        {
-            var fs = new FileStream(fn, FileMode.Create);
-            Byte[] preamble = enc.GetPreamble();
-            fs.Write(preamble, 0, preamble.Length);
-            Console.WriteLine("Preamble has {0} bytes", preamble.Length);
-            fs.Write(bytes, 0, bytes.Length);
-            Console.WriteLine("Wrote {0} bytes to {1}.", fs.Length, fn);
-            fs.Close();
-            Console.WriteLine();
-        }
-
-        
 
     }
 }
